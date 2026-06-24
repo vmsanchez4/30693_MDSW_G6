@@ -1,0 +1,9 @@
+========== RECIBO DE VENTA ==========
+Número de pedido: 1
+Cliente: jjj
+Fecha: 2026-06-14
+------------------------------------
+Filtro de aire x14 = $178,50
+------------------------------------
+TOTAL: $178,50
+========== GRACIAS POR SU COMPRA ==========
