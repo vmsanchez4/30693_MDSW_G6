@@ -1,0 +1,35 @@
+# Archivos compilados
+target/
+*.class
+
+# Archivos de NetBeans
+nbproject/
+nbactions.xml
+nb-configuration.xml
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Base de datos SQLite (no subir datos reales)
+#*.db
+*.sqlite
+*.sqlite3
+
+# Archivos de logs
+*.log
+
+# Archivos temporales
+*.tmp
+*.swp
+*.bak
+
+# Recibos generados
+recibo_*.txt
+
+# Carpetas de imágenes (si son grandes, mejor no subirlas)
+# imagenes/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
