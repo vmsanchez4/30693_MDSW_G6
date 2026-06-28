@@ -1,8 +1,12 @@
 package com.mycompany.accesorioslf.vista;
 
 import com.mycompany.accesorioslf.controlador.ControladorSolicitud;
+import com.mycompany.accesorioslf.modelo.ProductoSolicitado;
 import javax.swing.*;
 import java.awt.*;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DialogoSolicitud extends JDialog {
     private ControladorSolicitud controladorSolicitud;
@@ -43,12 +47,19 @@ public class DialogoSolicitud extends JDialog {
             JOptionPane.showMessageDialog(this, "Nombre y teléfono son obligatorios.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        int idSolicitud = controladorSolicitud.guardarSolicitudContacto(nombre, telefono, "");
-        if (idSolicitud != -1) {
-            new DialogoSeleccionProductos((JFrame) getParent(), idSolicitud).setVisible(true);
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error al guardar la solicitud.", "Error", JOptionPane.ERROR_MESSAGE);
+        // Usar el método unificado para guardar solicitud y luego abrir selección
+        // Pero como necesitamos el ID, primero guardamos la solicitud sin productos y luego abrimos selección.
+        try {
+            // Guardamos la solicitud sin productos (descripción vacía)
+            int idSolicitud = controladorSolicitud.guardarSolicitudCompleta(nombre, telefono, "", null);
+            if (idSolicitud != -1) {
+                new DialogoSeleccionProductos((JFrame) getParent(), idSolicitud).setVisible(true);
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Error al guardar la solicitud.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }

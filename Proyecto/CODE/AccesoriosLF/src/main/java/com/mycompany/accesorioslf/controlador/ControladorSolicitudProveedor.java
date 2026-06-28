@@ -7,27 +7,36 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-public class ControladorSolicitudProveedor {
+public class ControladorSolicitudProveedor implements ISolicitudProveedorControlador {
     private Connection conexion;
+    private static final Logger LOGGER = Logger.getLogger(ControladorSolicitudProveedor.class.getName());
 
     public ControladorSolicitudProveedor() {
         try {
             conexion = DatabaseConnection.getConnection();
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al conectar a la BD", e);
+        }
     }
 
-    public int crearSolicitudProveedor(List<ItemSolicitudProveedor> items) {
-        String sqlSolicitud = "INSERT INTO solicitudes_proveedor (fecha, estado) VALUES (?, 'pendiente')";
+    @Override
+    public int crearSolicitudProveedor(List<ItemSolicitudProveedor> items) throws SQLException {
         int solicitudId = -1;
-        try (PreparedStatement pstmt = conexion.prepareStatement(sqlSolicitud, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setString(1, LocalDate.now().toString());
-            pstmt.executeUpdate();
-            ResultSet rs = pstmt.getGeneratedKeys();
-            if (rs.next()) solicitudId = rs.getInt(1);
-        } catch (SQLException e) { e.printStackTrace(); }
+        conexion.setAutoCommit(false);
+        try {
+            String sqlSolicitud = "INSERT INTO solicitudes_proveedor (fecha, estado) VALUES (?, 'pendiente')";
+            try (PreparedStatement pstmt = conexion.prepareStatement(sqlSolicitud, Statement.RETURN_GENERATED_KEYS)) {
+                pstmt.setString(1, LocalDate.now().toString());
+                pstmt.executeUpdate();
+                ResultSet rs = pstmt.getGeneratedKeys();
+                if (rs.next()) solicitudId = rs.getInt(1);
+            }
 
-        if (solicitudId != -1) {
+            if (solicitudId == -1) throw new SQLException("No se pudo obtener ID de solicitud.");
+
             String sqlDetalle = "INSERT INTO detalle_solicitud_proveedor (solicitud_proveedor_id, producto_id, cantidad) VALUES (?, ?, ?)";
             try (PreparedStatement pstmt = conexion.prepareStatement(sqlDetalle)) {
                 for (ItemSolicitudProveedor item : items) {
@@ -37,20 +46,33 @@ public class ControladorSolicitudProveedor {
                     pstmt.addBatch();
                 }
                 pstmt.executeBatch();
-            } catch (SQLException e) { e.printStackTrace(); }
+            }
+
+            conexion.commit();
+        } catch (SQLException e) {
+            conexion.rollback();
+            LOGGER.log(Level.SEVERE, "Error al crear solicitud a proveedor", e);
+            throw e;
+        } finally {
+            conexion.setAutoCommit(true);
         }
         return solicitudId;
     }
 
-    public void actualizarEstadoSolicitud(int solicitudId, String nuevoEstado) {
+    @Override
+    public void actualizarEstadoSolicitud(int solicitudId, String nuevoEstado) throws SQLException {
         String sql = "UPDATE solicitudes_proveedor SET estado = ? WHERE id = ?";
         try (PreparedStatement pstmt = conexion.prepareStatement(sql)) {
             pstmt.setString(1, nuevoEstado);
             pstmt.setInt(2, solicitudId);
             pstmt.executeUpdate();
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al actualizar estado", e);
+            throw e;
+        }
     }
 
+    @Override
     public List<SolicitudProveedor> getSolicitudesProveedor() {
         List<SolicitudProveedor> lista = new ArrayList<>();
         String sql = "SELECT * FROM solicitudes_proveedor ORDER BY fecha DESC";
@@ -63,22 +85,26 @@ public class ControladorSolicitudProveedor {
                 List<ItemSolicitudProveedor> items = obtenerItemsSolicitud(id);
                 lista.add(new SolicitudProveedor(id, fecha, estado, items));
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al obtener solicitudes proveedor", e);
+        }
         return lista;
     }
+
+    @Override
     public Set<Integer> getProductosSolicitadosIds() {
-    Set<Integer> ids = new HashSet<>();
-    String sql = "SELECT DISTINCT producto_id FROM detalle_solicitud_proveedor";
-    try (Statement stmt = conexion.createStatement();
-         ResultSet rs = stmt.executeQuery(sql)) {
-        while (rs.next()) {
-            ids.add(rs.getInt("producto_id"));
+        Set<Integer> ids = new HashSet<>();
+        String sql = "SELECT DISTINCT producto_id FROM detalle_solicitud_proveedor";
+        try (Statement stmt = conexion.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                ids.add(rs.getInt("producto_id"));
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al obtener IDs de productos solicitados", e);
         }
-    } catch (SQLException e) {
-        e.printStackTrace();
+        return ids;
     }
-    return ids;
-}
 
     private List<ItemSolicitudProveedor> obtenerItemsSolicitud(int solicitudId) {
         List<ItemSolicitudProveedor> items = new ArrayList<>();
@@ -104,7 +130,9 @@ public class ControladorSolicitudProveedor {
                 );
                 items.add(new ItemSolicitudProveedor(prod, rs.getInt("cantidad")));
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al obtener items de solicitud", e);
+        }
         return items;
     }
 }

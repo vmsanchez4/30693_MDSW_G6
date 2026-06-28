@@ -1,9 +1,9 @@
 ========== RECIBO DE VENTA ==========
 Número de pedido: 1
-Cliente: jjj
-Fecha: 2026-06-14
+Cliente: Marco
+Fecha: 2026-06-28
 ------------------------------------
-Filtro de aire x14 = $178,50
+Batería x9 = $809,91
 ------------------------------------
-TOTAL: $178,50
+TOTAL: $809,91
 ========== GRACIAS POR SU COMPRA ==========

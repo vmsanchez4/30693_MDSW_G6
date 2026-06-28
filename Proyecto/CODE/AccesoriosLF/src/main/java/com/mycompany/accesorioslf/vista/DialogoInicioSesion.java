@@ -7,6 +7,7 @@ import java.awt.*;
 public class DialogoInicioSesion extends JDialog {
     private boolean autenticado = false;
     private String usuarioAutenticado;
+    private String rolAutenticado;
     private JTextField txtUsuario;
     private JPasswordField txtPassword;
     private ControladorUsuario controladorUsuario;
@@ -16,7 +17,7 @@ public class DialogoInicioSesion extends JDialog {
     private static final long TIEMPO_BLOQUEO_MS = 30000;
 
     public DialogoInicioSesion(JFrame parent) {
-        super(parent, "Acceso Administrador", true);
+        super(parent, "Inicio de Sesión", true);
         controladorUsuario = new ControladorUsuario();
         setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -64,15 +65,16 @@ public class DialogoInicioSesion extends JDialog {
         String usuario = txtUsuario.getText().trim();
         String password = new String(txtPassword.getPassword()).trim();
 
-        // Validación: campos vacíos
         if (usuario.isEmpty() || password.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Usuario y contraseña son obligatorios.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        if (controladorUsuario.autenticarAdmin(usuario, password)) {
+        String rol = controladorUsuario.autenticar(usuario, password);
+        if (rol != null) {
             intentosFallidos = 0;
             usuarioAutenticado = usuario;
+            rolAutenticado = rol;
             autenticado = true;
             dispose();
         } else {
@@ -95,4 +97,5 @@ public class DialogoInicioSesion extends JDialog {
 
     public boolean isAutenticado() { return autenticado; }
     public String getUsuarioAutenticado() { return usuarioAutenticado; }
+    public String getRolAutenticado() { return rolAutenticado; }
 }

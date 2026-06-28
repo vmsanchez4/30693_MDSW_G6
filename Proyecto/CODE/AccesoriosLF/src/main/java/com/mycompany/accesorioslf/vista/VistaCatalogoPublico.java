@@ -43,7 +43,6 @@ public class VistaCatalogoPublico extends JFrame {
         JScrollPane scroll = new JScrollPane(panelTarjetas);
         add(scroll, BorderLayout.CENTER);
 
-        // Búsqueda en tiempo real
         txtBuscar.getDocument().addDocumentListener(new DocumentListener() {
             @Override public void insertUpdate(DocumentEvent e) { cargarTarjetas(); }
             @Override public void removeUpdate(DocumentEvent e) { cargarTarjetas(); }
@@ -128,8 +127,12 @@ public class VistaCatalogoPublico extends JFrame {
         login.setVisible(true);
         if (login.isAutenticado()) {
             this.dispose();
-            VistaAdmin admin = new VistaAdmin(login.getUsuarioAutenticado());
-            admin.setVisible(true);
+            if ("admin".equals(login.getRolAutenticado())) {
+                new VistaAdmin(login.getUsuarioAutenticado()).setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(null, "Bienvenido cliente", "Acceso", JOptionPane.INFORMATION_MESSAGE);
+                // Podríamos abrir una vista cliente específica, pero por ahora solo mostramos mensaje
+            }
         }
     }
 }

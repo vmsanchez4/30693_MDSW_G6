@@ -9,6 +9,5 @@ public class AccesoriosLF {
             VistaCatalogoPublico catalogo = new VistaCatalogoPublico();
             catalogo.setVisible(true);
         });
-        
     }
 }

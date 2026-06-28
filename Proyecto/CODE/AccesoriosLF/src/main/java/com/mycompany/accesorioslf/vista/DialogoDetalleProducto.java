@@ -12,7 +12,6 @@ public class DialogoDetalleProducto extends JDialog {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
 
-        // Solo información básica del producto, sin datos del proveedor
         agregarCampo(gbc, "ID:", String.valueOf(producto.getId()), 0);
         agregarCampo(gbc, "Nombre:", producto.getNombre(), 1);
         agregarCampo(gbc, "Precio:", "$" + String.format("%.2f", producto.getPrecio()), 2);
@@ -21,7 +20,6 @@ public class DialogoDetalleProducto extends JDialog {
         agregarCampo(gbc, "Imagen:", producto.getImagen(), 5);
         agregarCampo(gbc, "Modelo:", producto.getModelo(), 7);
         agregarCampo(gbc, "Categoría:", producto.getCategoria(), 8);
-        // Nota: Proveedor y contacto NO se muestran al público
 
         JButton btnCerrar = new JButton("Cerrar");
         btnCerrar.addActionListener(e -> dispose());

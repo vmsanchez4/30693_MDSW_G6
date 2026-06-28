@@ -15,6 +15,7 @@ public class ProductoSolicitado {
         this.estado = estado;
     }
 
+    // Getters y Setters
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
     public int getSolicitudId() { return solicitudId; }

@@ -5,18 +5,22 @@ import com.mycompany.accesorioslf.modelo.DatabaseConnection;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-public class ControladorProducto {
+public class ControladorProducto implements IProductoControlador {
     private Connection conexion;
+    private static final Logger LOGGER = Logger.getLogger(ControladorProducto.class.getName());
 
     public ControladorProducto() {
         try {
             conexion = DatabaseConnection.getConnection();
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error al conectar a la BD", e);
         }
     }
 
+    @Override
     public List<Producto> getProductos() {
         List<Producto> lista = new ArrayList<>();
         String sql = "SELECT * FROM productos ORDER BY id";
@@ -26,11 +30,12 @@ public class ControladorProducto {
                 lista.add(extraerProducto(rs));
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error al obtener productos", e);
         }
         return lista;
     }
 
+    @Override
     public List<Producto> buscarPorNombre(String texto) {
         List<Producto> lista = new ArrayList<>();
         if (texto == null || texto.trim().isEmpty()) return getProductos();
@@ -42,12 +47,13 @@ public class ControladorProducto {
                 lista.add(extraerProducto(rs));
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error en búsqueda por nombre", e);
         }
         return lista;
     }
 
-    public void agregarProducto(Producto p) {
+    @Override
+    public void agregarProducto(Producto p) throws SQLException {
         String sql = "INSERT INTO productos (nombre, stock, precio, descripcion, imagen, fechaRegistro, modelo, proveedor, categoria, contacto_proveedor, telefono_proveedor) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement pstmt = conexion.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             pstmt.setString(1, p.getNombre());
@@ -65,11 +71,13 @@ public class ControladorProducto {
             ResultSet rs = pstmt.getGeneratedKeys();
             if (rs.next()) p.setId(rs.getInt(1));
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error al agregar producto", e);
+            throw e;
         }
     }
 
-    public void actualizarProducto(Producto p) {
+    @Override
+    public void actualizarProducto(Producto p) throws SQLException {
         String sql = "UPDATE productos SET nombre=?, stock=?, precio=?, descripcion=?, imagen=?, fechaRegistro=?, modelo=?, proveedor=?, categoria=?, contacto_proveedor=?, telefono_proveedor=? WHERE id=?";
         try (PreparedStatement pstmt = conexion.prepareStatement(sql)) {
             pstmt.setString(1, p.getNombre());
@@ -86,20 +94,24 @@ public class ControladorProducto {
             pstmt.setInt(12, p.getId());
             pstmt.executeUpdate();
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error al actualizar producto", e);
+            throw e;
         }
     }
 
-    public void eliminarProducto(int id) {
+    @Override
+    public void eliminarProducto(int id) throws SQLException {
         String sql = "DELETE FROM productos WHERE id = ?";
         try (PreparedStatement pstmt = conexion.prepareStatement(sql)) {
             pstmt.setInt(1, id);
             pstmt.executeUpdate();
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error al eliminar producto", e);
+            throw e;
         }
     }
 
+    @Override
     public Producto obtenerProductoPorId(int id) {
         String sql = "SELECT * FROM productos WHERE id = ?";
         try (PreparedStatement pstmt = conexion.prepareStatement(sql)) {
@@ -107,7 +119,7 @@ public class ControladorProducto {
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) return extraerProducto(rs);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error al obtener producto por ID", e);
         }
         return null;
     }

@@ -8,6 +8,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -106,7 +107,7 @@ public class DialogoVenta extends JDialog {
             return;
         }
         if (!cliente.matches(TEXTO_PERMITIDO)) {
-            JOptionPane.showMessageDialog(this, "El nombre contiene caracteres no permitidos. Solo se permiten letras, números, espacios, puntos, comas, guiones, apóstrofes y paréntesis.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "El nombre contiene caracteres no permitidos.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
         if (detalles.isEmpty()) {
@@ -114,13 +115,17 @@ public class DialogoVenta extends JDialog {
             return;
         }
 
-        int pedidoId = controladorVenta.registrarVenta(cliente, detalles);
-        if (pedidoId != -1) {
-            generarRecibo(pedidoId, cliente);
-            JOptionPane.showMessageDialog(this, "Venta registrada exitosamente. Pedido #" + pedidoId, "Éxito", JOptionPane.INFORMATION_MESSAGE);
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error al registrar la venta.", "Error", JOptionPane.ERROR_MESSAGE);
+        try {
+            int pedidoId = controladorVenta.registrarVenta(cliente, detalles);
+            if (pedidoId != -1) {
+                generarRecibo(pedidoId, cliente);
+                JOptionPane.showMessageDialog(this, "Venta registrada exitosamente. Pedido #" + pedidoId, "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Error al registrar la venta.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error al registrar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 

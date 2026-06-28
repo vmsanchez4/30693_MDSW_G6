@@ -7,6 +7,7 @@ import com.mycompany.accesorioslf.modelo.Producto;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,7 +38,6 @@ public class DialogoPedidoCliente extends JDialog {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Datos del cliente
         gbc.gridx = 0; gbc.gridy = 0;
         add(new JLabel("Nombre (*):"), gbc);
         gbc.gridx = 1;
@@ -50,7 +50,6 @@ public class DialogoPedidoCliente extends JDialog {
         txtTelefono = new JTextField(15);
         add(txtTelefono, gbc);
 
-        // Selección de producto
         gbc.gridx = 0; gbc.gridy = 2;
         add(new JLabel("Producto:"), gbc);
         gbc.gridx = 1;
@@ -69,7 +68,6 @@ public class DialogoPedidoCliente extends JDialog {
         add(btnAgregar, gbc);
         gbc.gridwidth = 1;
 
-        // Tabla de items
         modeloTabla = new ItemsTableModel();
         tabla = new JTable(modeloTabla);
         JScrollPane scroll = new JScrollPane(tabla);
@@ -79,7 +77,6 @@ public class DialogoPedidoCliente extends JDialog {
         add(scroll, gbc);
         gbc.weightx = 0; gbc.weighty = 0;
 
-        // Botones finales
         JPanel panelBotones = new JPanel(new FlowLayout());
         JButton btnEliminar = new JButton("Eliminar seleccionado");
         JButton btnGuardar = new JButton("Guardar pedido");
@@ -136,44 +133,34 @@ public class DialogoPedidoCliente extends JDialog {
         String nombre = txtNombre.getText().trim();
         String telefono = txtTelefono.getText().trim();
 
-        // Validar nombre
-        if (nombre.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "El nombre es obligatorio.", "Error", JOptionPane.ERROR_MESSAGE);
+        if (nombre.isEmpty() || !nombre.matches(TEXTO_PERMITIDO)) {
+            JOptionPane.showMessageDialog(this, "Nombre inválido.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        if (!nombre.matches(TEXTO_PERMITIDO)) {
-            JOptionPane.showMessageDialog(this, "El nombre contiene caracteres no permitidos. Solo se permiten letras, números, espacios, puntos, comas, guiones, apóstrofes y paréntesis.", "Error", JOptionPane.ERROR_MESSAGE);
+        if (telefono.isEmpty() || !telefono.matches("[0-9\\-\\+\\s\\(\\)]+")) {
+            JOptionPane.showMessageDialog(this, "Teléfono inválido.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
-        // Validar teléfono
-        if (telefono.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "El teléfono es obligatorio.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        if (!telefono.matches("[0-9\\-\\+\\s\\(\\)]+")) {
-            JOptionPane.showMessageDialog(this, "El teléfono solo puede contener números, espacios, guiones, paréntesis y el signo +.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
         if (items.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Agregue al menos un producto.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        int id = controladorPedidoCliente.guardarPedidoCliente(nombre, telefono, items);
-        if (id != -1) {
-            JOptionPane.showMessageDialog(this, "Pedido guardado con éxito. Número: " + id, "Éxito", JOptionPane.INFORMATION_MESSAGE);
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error al guardar el pedido.", "Error", JOptionPane.ERROR_MESSAGE);
+        try {
+            int id = controladorPedidoCliente.guardarPedidoCliente(nombre, telefono, items);
+            if (id != -1) {
+                JOptionPane.showMessageDialog(this, "Pedido guardado con éxito. Número: " + id, "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Error al guardar el pedido.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    // ---------- TableModel para items ----------
     private class ItemsTableModel extends AbstractTableModel {
         private final String[] columnas = {"Producto", "Cantidad"};
-
         @Override public int getRowCount() { return items.size(); }
         @Override public int getColumnCount() { return 2; }
         @Override public String getColumnName(int col) { return columnas[col]; }

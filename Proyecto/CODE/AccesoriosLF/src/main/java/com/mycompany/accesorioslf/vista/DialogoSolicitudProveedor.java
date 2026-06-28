@@ -7,6 +7,7 @@ import com.mycompany.accesorioslf.modelo.Producto;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +53,6 @@ public class DialogoSolicitudProveedor extends JDialog {
         add(btnAgregar, gbc);
         gbc.gridwidth = 1;
 
-        // Tabla de items
         modeloTabla = new ItemsTableModel();
         tabla = new JTable(modeloTabla);
         JScrollPane scroll = new JScrollPane(tabla);
@@ -90,13 +90,9 @@ public class DialogoSolicitudProveedor extends JDialog {
         int cantidad;
         try {
             String cantStr = txtCantidad.getText().trim();
-            if (cantStr.isEmpty()) {
-                throw new NumberFormatException();
-            }
+            if (cantStr.isEmpty()) throw new NumberFormatException();
             cantidad = Integer.parseInt(cantStr);
-            if (cantidad <= 0) {
-                throw new NumberFormatException();
-            }
+            if (cantidad <= 0) throw new NumberFormatException();
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Ingrese una cantidad válida (mayor a 0).", "Error", JOptionPane.ERROR_MESSAGE);
             return;
@@ -123,19 +119,21 @@ public class DialogoSolicitudProveedor extends JDialog {
             JOptionPane.showMessageDialog(this, "Agregue al menos un producto.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        int id = controladorSolicitud.crearSolicitudProveedor(items);
-        if (id != -1) {
-            JOptionPane.showMessageDialog(this, "Solicitud creada con éxito. Número: " + id, "Éxito", JOptionPane.INFORMATION_MESSAGE);
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error al crear la solicitud.", "Error", JOptionPane.ERROR_MESSAGE);
+        try {
+            int id = controladorSolicitud.crearSolicitudProveedor(items);
+            if (id != -1) {
+                JOptionPane.showMessageDialog(this, "Solicitud creada con éxito. Número: " + id, "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Error al crear la solicitud.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    // ---------- TableModel para items ----------
     private class ItemsTableModel extends AbstractTableModel {
         private final String[] columnas = {"Producto", "Cantidad"};
-
         @Override public int getRowCount() { return items.size(); }
         @Override public int getColumnCount() { return 2; }
         @Override public String getColumnName(int col) { return columnas[col]; }

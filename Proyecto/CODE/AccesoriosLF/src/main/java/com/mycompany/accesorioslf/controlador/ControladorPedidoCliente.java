@@ -5,29 +5,38 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-public class ControladorPedidoCliente {
+public class ControladorPedidoCliente implements IPedidoClienteControlador {
     private Connection conexion;
+    private static final Logger LOGGER = Logger.getLogger(ControladorPedidoCliente.class.getName());
 
     public ControladorPedidoCliente() {
         try {
             conexion = DatabaseConnection.getConnection();
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al conectar a la BD", e);
+        }
     }
 
-    public int guardarPedidoCliente(String nombre, String telefono, List<ItemPedidoCliente> items) {
-        String sqlPedido = "INSERT INTO pedidos_cliente (nombre_cliente, telefono, fecha) VALUES (?, ?, ?)";
+    @Override
+    public int guardarPedidoCliente(String nombre, String telefono, List<ItemPedidoCliente> items) throws SQLException {
         int pedidoId = -1;
-        try (PreparedStatement pstmt = conexion.prepareStatement(sqlPedido, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setString(1, nombre);
-            pstmt.setString(2, telefono);
-            pstmt.setString(3, LocalDate.now().toString());
-            pstmt.executeUpdate();
-            ResultSet rs = pstmt.getGeneratedKeys();
-            if (rs.next()) pedidoId = rs.getInt(1);
-        } catch (SQLException e) { e.printStackTrace(); }
+        conexion.setAutoCommit(false);
+        try {
+            String sqlPedido = "INSERT INTO pedidos_cliente (nombre_cliente, telefono, fecha) VALUES (?, ?, ?)";
+            try (PreparedStatement pstmt = conexion.prepareStatement(sqlPedido, Statement.RETURN_GENERATED_KEYS)) {
+                pstmt.setString(1, nombre);
+                pstmt.setString(2, telefono);
+                pstmt.setString(3, LocalDate.now().toString());
+                pstmt.executeUpdate();
+                ResultSet rs = pstmt.getGeneratedKeys();
+                if (rs.next()) pedidoId = rs.getInt(1);
+            }
 
-        if (pedidoId != -1) {
+            if (pedidoId == -1) throw new SQLException("No se pudo obtener ID del pedido.");
+
             String sqlDetalle = "INSERT INTO detalle_pedido_cliente (pedido_cliente_id, producto_id, cantidad) VALUES (?, ?, ?)";
             try (PreparedStatement pstmt = conexion.prepareStatement(sqlDetalle)) {
                 for (ItemPedidoCliente item : items) {
@@ -37,11 +46,20 @@ public class ControladorPedidoCliente {
                     pstmt.addBatch();
                 }
                 pstmt.executeBatch();
-            } catch (SQLException e) { e.printStackTrace(); }
+            }
+
+            conexion.commit();
+        } catch (SQLException e) {
+            conexion.rollback();
+            LOGGER.log(Level.SEVERE, "Error al guardar pedido cliente", e);
+            throw e;
+        } finally {
+            conexion.setAutoCommit(true);
         }
         return pedidoId;
     }
 
+    @Override
     public List<PedidoCliente> getPedidosCliente() {
         List<PedidoCliente> lista = new ArrayList<>();
         String sql = "SELECT * FROM pedidos_cliente ORDER BY fecha DESC";
@@ -55,7 +73,9 @@ public class ControladorPedidoCliente {
                 List<ItemPedidoCliente> items = obtenerItemsPedidoCliente(id);
                 lista.add(new PedidoCliente(id, nombre, telefono, fecha, items));
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al obtener pedidos cliente", e);
+        }
         return lista;
     }
 
@@ -83,7 +103,9 @@ public class ControladorPedidoCliente {
                 );
                 items.add(new ItemPedidoCliente(prod, rs.getInt("cantidad")));
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error al obtener items de pedido cliente", e);
+        }
         return items;
     }
 }

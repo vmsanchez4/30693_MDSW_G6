@@ -10,7 +10,6 @@ public class DialogoProducto extends JDialog {
     private Producto producto;
     private JTextField txtNombre, txtStock, txtPrecio, txtDescripcion, txtImagen, txtModelo, txtProveedor, txtCategoria, txtContactoProveedor, txtTelefonoProveedor;
 
-    // Expresión regular para caracteres permitidos en texto
     private static final String TEXTO_PERMITIDO = "^[a-zA-ZáéíóúñÑÁÉÍÓÚüÜ\\s\\.\\,\\-\\'\\(\\)0-9]+$";
 
     public DialogoProducto(JFrame parent, Producto productoExistente) {
@@ -75,7 +74,6 @@ public class DialogoProducto extends JDialog {
         gbc.gridx = 1; add(campo, gbc);
     }
 
-    // Método de validación de texto
     private boolean validarTexto(String texto, String campo) {
         if (texto == null || texto.trim().isEmpty()) {
             throw new IllegalArgumentException("El campo '" + campo + "' es obligatorio.");
@@ -88,7 +86,6 @@ public class DialogoProducto extends JDialog {
 
     private void guardar() {
         try {
-            // Validar campos de texto (todos excepto imagen y teléfono)
             String nombre = txtNombre.getText().trim();
             validarTexto(nombre, "Nombre");
 
@@ -107,7 +104,6 @@ public class DialogoProducto extends JDialog {
             String contacto = txtContactoProveedor.getText().trim();
             validarTexto(contacto, "Contacto proveedor");
 
-            // Teléfono (validación especial)
             String telefono = txtTelefonoProveedor.getText().trim();
             if (telefono.isEmpty()) {
                 throw new IllegalArgumentException("El teléfono del proveedor es obligatorio.");
@@ -116,7 +112,6 @@ public class DialogoProducto extends JDialog {
                 throw new IllegalArgumentException("El teléfono solo puede contener números, espacios, guiones, paréntesis y el signo +.");
             }
 
-            // Validar stock y precio (numéricos)
             String stockStr = txtStock.getText().trim();
             if (stockStr.isEmpty()) throw new IllegalArgumentException("El stock es obligatorio.");
             int stock = Integer.parseInt(stockStr);
@@ -127,17 +122,13 @@ public class DialogoProducto extends JDialog {
             double precio = Double.parseDouble(precioStr.replace(',', '.'));
             if (precio < 0) throw new IllegalArgumentException("El precio no puede ser negativo.");
 
-            // Imagen (opcional)
             String imagen = txtImagen.getText().trim();
 
             producto = new Producto(0, nombre, stock, precio, descripcion, imagen, LocalDate.now().toString(),
                     modelo, proveedor, categoria, contacto, telefono);
             guardado = true;
 
-            JOptionPane.showMessageDialog(this,
-                    "Producto guardado con éxito.",
-                    "Éxito",
-                    JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Producto guardado con éxito.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
             dispose();
 
         } catch (NumberFormatException e) {

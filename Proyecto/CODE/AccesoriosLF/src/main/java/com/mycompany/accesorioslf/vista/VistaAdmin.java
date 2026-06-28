@@ -5,7 +5,9 @@ import com.mycompany.accesorioslf.modelo.*;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
@@ -17,13 +19,26 @@ public class VistaAdmin extends JFrame {
     private ControladorPedidoCliente controladorPedidoCliente;
     private ControladorSolicitudProveedor controladorSolicitudProveedor;
 
+    // Tabla de productos con su modelo y filtro
     private JTable tablaProductos;
     private ProductoTableModel modeloTablaProductos;
+    private TableRowSorter<ProductoTableModel> sorterProductos;
+    private JTextField txtBuscarProducto;
+
+    // Tablas para historial de ventas y otros
     private JTable tablaPedidosCliente;
     private DefaultTableModel modeloTablaPedidosCliente;
     private JTable tablaSolicitudesProveedor;
     private DefaultTableModel modeloTablaSolicitudesProveedor;
     private Set<Integer> productosSolicitados;
+
+    // Para alertas de stock
+    private DefaultTableModel modelAlertas;
+
+    // Componentes del panel de ventas
+    private JTable tablaHistorialVentas;
+    private DefaultTableModel modelHistorialVentas;
+    private JLabel lblTotalVentas, lblMontoTotal, lblPromedioDiario;
 
     public VistaAdmin(String usuario) {
         this.usuario = usuario;
@@ -37,6 +52,9 @@ public class VistaAdmin extends JFrame {
         cargarProductos();
         cargarPedidosCliente();
         cargarSolicitudesProveedor();
+        cargarHistorialVentas();
+        actualizarEstadisticas();
+        actualizarAlertasStock();
 
         SwingUtilities.invokeLater(() -> {
             JOptionPane.showMessageDialog(this,
@@ -69,18 +87,36 @@ public class VistaAdmin extends JFrame {
         add(tabbedPane, BorderLayout.CENTER);
     }
 
-    // ================== PRODUCTOS ==================
+    // ================== PRODUCTOS (con búsqueda por código y nombre) ==================
     private JPanel crearPanelProductos() {
         JPanel panel = new JPanel(new BorderLayout());
+
+        // Panel de búsqueda
+        JPanel panelBusqueda = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        panelBusqueda.add(new JLabel("Buscar por código o nombre:"));
+        txtBuscarProducto = new JTextField(20);
+        txtBuscarProducto.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { filtrarProductos(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { filtrarProductos(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { filtrarProductos(); }
+        });
+        panelBusqueda.add(txtBuscarProducto);
+        panel.add(panelBusqueda, BorderLayout.NORTH);
+
+        // Tabla
         modeloTablaProductos = new ProductoTableModel();
         tablaProductos = new JTable(modeloTablaProductos);
+        sorterProductos = new TableRowSorter<>(modeloTablaProductos);
+        tablaProductos.setRowSorter(sorterProductos);
         tablaProductos.setRowHeight(30);
         tablaProductos.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                Producto p = modeloTablaProductos.getProductoEnFila(row);
+                // Obtener el producto real a través del modelo (con el filtro aplicado)
+                int modelRow = tablaProductos.convertRowIndexToModel(row);
+                Producto p = modeloTablaProductos.getProductoEnFila(modelRow);
                 if (p.getStock() < 5) {
                     c.setBackground(new Color(255, 200, 200));
                 } else {
@@ -92,6 +128,7 @@ public class VistaAdmin extends JFrame {
         JScrollPane scroll = new JScrollPane(tablaProductos);
         panel.add(scroll, BorderLayout.CENTER);
 
+        // Botones de acción
         JPanel botones = new JPanel(new FlowLayout());
         JButton btnAgregar = new JButton("Agregar producto");
         JButton btnEditar = new JButton("Editar producto");
@@ -109,81 +146,151 @@ public class VistaAdmin extends JFrame {
         return panel;
     }
 
+    private void filtrarProductos() {
+        String texto = txtBuscarProducto.getText().trim();
+        if (texto.isEmpty()) {
+            sorterProductos.setRowFilter(null);
+        } else {
+            // Buscar en columna 0 (Código/ID) y columna 1 (Nombre)
+            sorterProductos.setRowFilter(RowFilter.regexFilter("(?i)" + texto, 0, 1));
+        }
+    }
+
     private void cargarProductos() {
         productosSolicitados = controladorSolicitudProveedor.getProductosSolicitadosIds();
         modeloTablaProductos.setIdsSolicitados(productosSolicitados);
         modeloTablaProductos.setProductos(controladorProducto.getProductos());
+        filtrarProductos(); // reaplica el filtro
+        actualizarAlertasStock();
     }
 
     private void agregarProducto() {
         DialogoProducto dialogo = new DialogoProducto(this, null);
         dialogo.setVisible(true);
         if (dialogo.isGuardado()) {
-            controladorProducto.agregarProducto(dialogo.getProducto());
-            cargarProductos();
-            actualizarAlertasStock();
+            try {
+                controladorProducto.agregarProducto(dialogo.getProducto());
+                cargarProductos();
+                JOptionPane.showMessageDialog(this, "Producto agregado con éxito.");
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(this, "Error al agregar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
     private void editarProducto() {
-        int fila = tablaProductos.getSelectedRow();
-        if (fila == -1) {
+        int filaSeleccionada = tablaProductos.getSelectedRow();
+        if (filaSeleccionada == -1) {
             JOptionPane.showMessageDialog(this, "Seleccione un producto para editar.", "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        Producto original = modeloTablaProductos.getProductoEnFila(fila);
+        int modelRow = tablaProductos.convertRowIndexToModel(filaSeleccionada);
+        Producto original = modeloTablaProductos.getProductoEnFila(modelRow);
         DialogoProducto dialogo = new DialogoProducto(this, original);
         dialogo.setVisible(true);
         if (dialogo.isGuardado()) {
             Producto actualizado = dialogo.getProducto();
             actualizado.setId(original.getId());
             actualizado.setFechaRegistro(original.getFechaRegistro());
-            controladorProducto.actualizarProducto(actualizado);
-            cargarProductos();
-            actualizarAlertasStock();
+            try {
+                controladorProducto.actualizarProducto(actualizado);
+                cargarProductos();
+                JOptionPane.showMessageDialog(this, "Producto actualizado con éxito.");
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(this, "Error al actualizar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
     private void eliminarProducto() {
-        int fila = tablaProductos.getSelectedRow();
-        if (fila == -1) {
+        int filaSeleccionada = tablaProductos.getSelectedRow();
+        if (filaSeleccionada == -1) {
             JOptionPane.showMessageDialog(this, "Seleccione un producto para eliminar.", "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        Producto p = modeloTablaProductos.getProductoEnFila(fila);
+        int modelRow = tablaProductos.convertRowIndexToModel(filaSeleccionada);
+        Producto p = modeloTablaProductos.getProductoEnFila(modelRow);
         int confirm = JOptionPane.showConfirmDialog(this, "¿Eliminar " + p.getNombre() + "?", "Confirmar", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
-            controladorProducto.eliminarProducto(p.getId());
-            cargarProductos();
-            actualizarAlertasStock();
-            // Mensaje de éxito al eliminar
-            JOptionPane.showMessageDialog(this,
-                    "Producto eliminado con éxito.",
-                    "Éxito",
-                    JOptionPane.INFORMATION_MESSAGE);
+            try {
+                controladorProducto.eliminarProducto(p.getId());
+                cargarProductos();
+                JOptionPane.showMessageDialog(this, "Producto eliminado con éxito.");
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(this, "Error al eliminar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
     private void verProveedor() {
-        int fila = tablaProductos.getSelectedRow();
-        if (fila == -1) {
+        int filaSeleccionada = tablaProductos.getSelectedRow();
+        if (filaSeleccionada == -1) {
             JOptionPane.showMessageDialog(this, "Seleccione un producto para ver el proveedor.", "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        Producto p = modeloTablaProductos.getProductoEnFila(fila);
+        int modelRow = tablaProductos.convertRowIndexToModel(filaSeleccionada);
+        Producto p = modeloTablaProductos.getProductoEnFila(modelRow);
         new DialogoVerProveedor(this, p).setVisible(true);
     }
 
-    // ================== VENTA ==================
+    // ================== PANEL DE VENTAS (con historial y estadísticas) ==================
     private JPanel crearPanelVenta() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JButton btnVenta = new JButton("Nueva Venta");
-        btnVenta.addActionListener(e -> new DialogoVenta(this, controladorProducto, controladorVenta).setVisible(true));
-        panel.add(btnVenta, BorderLayout.CENTER);
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+
+        // Panel superior: estadísticas
+        JPanel panelStats = new JPanel(new GridLayout(1, 3, 10, 5));
+        panelStats.setBorder(BorderFactory.createTitledBorder("Estadísticas (últimos 30 días)"));
+        lblTotalVentas = new JLabel("Total ventas: 0");
+        lblMontoTotal = new JLabel("Monto total: $0.00");
+        lblPromedioDiario = new JLabel("Promedio diario: $0.00");
+        panelStats.add(lblTotalVentas);
+        panelStats.add(lblMontoTotal);
+        panelStats.add(lblPromedioDiario);
+        panel.add(panelStats, BorderLayout.NORTH);
+
+        // Tabla de historial
+        modelHistorialVentas = new DefaultTableModel(new String[]{"ID", "Cliente", "Fecha", "Total"}, 0);
+        tablaHistorialVentas = new JTable(modelHistorialVentas);
+        JScrollPane scrollHistorial = new JScrollPane(tablaHistorialVentas);
+        scrollHistorial.setBorder(BorderFactory.createTitledBorder("Historial de ventas"));
+        panel.add(scrollHistorial, BorderLayout.CENTER);
+
+        // Botón Nueva Venta y actualizar
+        JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton btnNuevaVenta = new JButton("Nueva Venta");
+        JButton btnRefrescarVentas = new JButton("Refrescar historial");
+        btnNuevaVenta.addActionListener(e -> new DialogoVenta(this, controladorProducto, controladorVenta).setVisible(true));
+        btnRefrescarVentas.addActionListener(e -> {
+            cargarHistorialVentas();
+            actualizarEstadisticas();
+        });
+        panelBotones.add(btnNuevaVenta);
+        panelBotones.add(btnRefrescarVentas);
+        panel.add(panelBotones, BorderLayout.SOUTH);
+
         return panel;
     }
 
-    // ================== REPORTE ==================
+    private void cargarHistorialVentas() {
+        modelHistorialVentas.setRowCount(0);
+        for (Pedido p : controladorVenta.getHistorialVentas()) {
+            modelHistorialVentas.addRow(new Object[]{
+                p.getId(),
+                p.getClienteNombre(),
+                p.getFecha().toString(),
+                String.format("%.2f", p.getTotal())
+            });
+        }
+    }
+
+    private void actualizarEstadisticas() {
+        Object[] stats = controladorVenta.getEstadisticasVentas();
+        lblTotalVentas.setText("Total ventas: " + stats[0]);
+        lblMontoTotal.setText("Monto total: $" + String.format("%.2f", (double) stats[1]));
+        lblPromedioDiario.setText("Promedio diario: $" + String.format("%.2f", (double) stats[2]));
+    }
+
+    // ================== RESTO DE PESTAÑAS (sin cambios) ==================
     private JPanel crearPanelReporte() {
         JPanel panel = new JPanel(new BorderLayout());
         DefaultTableModel modeloReporte = new DefaultTableModel(new String[]{"ID", "Producto", "Vendidos (30d)", "Stock Actual", "Velocidad (día)"}, 0);
@@ -201,7 +308,6 @@ public class VistaAdmin extends JFrame {
         return panel;
     }
 
-    // ================== PEDIDOS DE CLIENTES ==================
     private JPanel crearPanelPedidosCliente() {
         JPanel panel = new JPanel(new BorderLayout());
         modeloTablaPedidosCliente = new DefaultTableModel(new String[]{"ID", "Cliente", "Teléfono", "Fecha", "Productos"}, 0);
@@ -228,7 +334,6 @@ public class VistaAdmin extends JFrame {
         }
     }
 
-    // ================== SOLICITUDES A PROVEEDORES ==================
     private JPanel crearPanelSolicitudesProveedor() {
         JPanel panel = new JPanel(new BorderLayout());
         modeloTablaSolicitudesProveedor = new DefaultTableModel(new String[]{"ID", "Fecha", "Estado", "Productos"}, 0);
@@ -242,12 +347,20 @@ public class VistaAdmin extends JFrame {
         JButton btnRefrescar = new JButton("Refrescar");
 
         btnNueva.addActionListener(e -> {
-            nuevaSolicitudProveedor();
-            cargarProductos();
+            try {
+                nuevaSolicitudProveedor();
+                cargarProductos();
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         });
         btnCambiarEstado.addActionListener(e -> {
-            cambiarEstadoSolicitud();
-            cargarProductos();
+            try {
+                cambiarEstadoSolicitud();
+                cargarProductos();
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         });
         btnRefrescar.addActionListener(e -> {
             cargarSolicitudesProveedor();
@@ -275,13 +388,13 @@ public class VistaAdmin extends JFrame {
         }
     }
 
-    private void nuevaSolicitudProveedor() {
+    private void nuevaSolicitudProveedor() throws SQLException {
         new DialogoSolicitudProveedor(this, controladorSolicitudProveedor, controladorProducto).setVisible(true);
         cargarSolicitudesProveedor();
         cargarProductos();
     }
 
-    private void cambiarEstadoSolicitud() {
+    private void cambiarEstadoSolicitud() throws SQLException {
         int fila = tablaSolicitudesProveedor.getSelectedRow();
         if (fila == -1) {
             JOptionPane.showMessageDialog(this, "Seleccione una solicitud.", "Aviso", JOptionPane.WARNING_MESSAGE);
@@ -296,39 +409,33 @@ public class VistaAdmin extends JFrame {
             controladorSolicitudProveedor.actualizarEstadoSolicitud(id, nuevo);
             cargarSolicitudesProveedor();
             cargarProductos();
-            // Mensaje de éxito
-            JOptionPane.showMessageDialog(this,
-                    "Estado de la solicitud actualizado con éxito.",
-                    "Éxito",
-                    JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Estado actualizado con éxito.");
         }
     }
 
-    // ================== ALERTAS STOCK BAJO ==================
     private JPanel crearPanelAlertasStock() {
         JPanel panel = new JPanel(new BorderLayout());
-        DefaultTableModel modelAlertas = new DefaultTableModel(new String[]{"ID", "Producto", "Stock", "Proveedor", "Contacto", "Teléfono"}, 0);
+        modelAlertas = new DefaultTableModel(new String[]{"ID", "Producto", "Stock", "Proveedor", "Contacto", "Teléfono"}, 0);
         JTable tablaAlertas = new JTable(modelAlertas);
         JScrollPane scroll = new JScrollPane(tablaAlertas);
         panel.add(scroll, BorderLayout.CENTER);
         JButton btnActualizar = new JButton("Actualizar");
-        btnActualizar.addActionListener(e -> actualizarAlertasStock(modelAlertas));
+        btnActualizar.addActionListener(e -> actualizarAlertasStock());
         panel.add(btnActualizar, BorderLayout.SOUTH);
-        actualizarAlertasStock(modelAlertas);
+        actualizarAlertasStock();
         return panel;
     }
 
-    private void actualizarAlertasStock() { /* no hace nada */ }
-    private void actualizarAlertasStock(DefaultTableModel model) {
-        model.setRowCount(0);
+    private void actualizarAlertasStock() {
+        if (modelAlertas == null) return;
+        modelAlertas.setRowCount(0);
         for (Producto p : controladorProducto.getProductos()) {
             if (p.getStock() < 5) {
-                model.addRow(new Object[]{p.getId(), p.getNombre(), p.getStock(), p.getProveedor(), p.getContactoProveedor(), p.getTelefonoProveedor()});
+                modelAlertas.addRow(new Object[]{p.getId(), p.getNombre(), p.getStock(), p.getProveedor(), p.getContactoProveedor(), p.getTelefonoProveedor()});
             }
         }
     }
 
-    // ================== USUARIOS ==================
     private JPanel crearPanelUsuarios() {
         JPanel panel = new JPanel(new BorderLayout());
         DefaultTableModel modelUsuarios = new DefaultTableModel(new String[]{"Usuario", "Rol"}, 0);
@@ -367,11 +474,7 @@ public class VistaAdmin extends JFrame {
         }
         controladorUsuario.cambiarRol(usuario, nuevoRol);
         cargarUsuarios(model);
-        // Mensaje de éxito
-        JOptionPane.showMessageDialog(this,
-                "Rol actualizado con éxito.",
-                "Éxito",
-                JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(this, "Rol actualizado con éxito.");
     }
 
     private void volverCatalogo() {
@@ -379,11 +482,12 @@ public class VistaAdmin extends JFrame {
         new VistaCatalogoPublico().setVisible(true);
     }
 
-    // ---------- TableModel para productos (con columna "Solicitado") ----------
+    // ---------- TableModel para productos ----------
     private class ProductoTableModel extends AbstractTableModel {
         private List<Producto> productos;
         private Set<Integer> idsSolicitados;
-        private final String[] columnas = {"ID", "Nombre", "Stock", "Precio", "Descripción", "Imagen", "FechaRegistro", "Modelo", "Proveedor", "Categoría", "Contacto", "Teléfono", "Solicitado"};
+        // Cambio: columna 0 ahora se llama "Código"
+        private final String[] columnas = {"Código", "Nombre", "Stock", "Precio", "Descripción", "Imagen", "FechaRegistro", "Modelo", "Proveedor", "Categoría", "Contacto", "Teléfono", "Solicitado"};
 
         public void setProductos(List<Producto> productos) {
             this.productos = productos;
@@ -399,26 +503,15 @@ public class VistaAdmin extends JFrame {
             return productos.get(row);
         }
 
-        @Override
-        public int getRowCount() {
-            return productos == null ? 0 : productos.size();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return columnas.length;
-        }
-
-        @Override
-        public String getColumnName(int col) {
-            return columnas[col];
-        }
+        @Override public int getRowCount() { return productos == null ? 0 : productos.size(); }
+        @Override public int getColumnCount() { return columnas.length; }
+        @Override public String getColumnName(int col) { return columnas[col]; }
 
         @Override
         public Object getValueAt(int row, int col) {
             Producto p = productos.get(row);
             switch (col) {
-                case 0: return p.getId();
+                case 0: return p.getId(); // Mostramos el ID como código
                 case 1: return p.getNombre();
                 case 2: return p.getStock();
                 case 3: return String.format("%.2f", p.getPrecio());
